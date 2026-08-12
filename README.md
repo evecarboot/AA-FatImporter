@@ -103,6 +103,30 @@ INSTALLED_APPS += [
 ]
 ```
 
+This is the only thing you should add to `local.py` for app registration. Do not put sample payout calculations at the top level of `local.py`.
+
+### 2a. Copy-paste example for the plugin admin values
+
+Use these values as the payout example if you want a strategic FAT to pay 1,000,000 ISK and a regular FAT to pay 500,000 ISK:
+
+```python
+# Example only: use in the plugin admin or a runtime function, not as top-level settings code
+amount = calculate_member_payout(
+    strategic_fats=3,
+    regular_fats=2,
+    strategic_rate=1000000,
+    regular_rate=500000,
+)
+# => 4000000
+```
+
+If you want to store the rates as config values, use the actual numeric values in the plugin admin:
+
+```python
+reward_for_strategic_fat = 1000000
+reward_for_regular_fat = 500000
+```
+
 ### 3. Include the plugin URLs
 
 Add the app URLs into your main Alliance Auth `urls.py`:
@@ -220,16 +244,20 @@ The alliance importer expects the same columns as the provided export, including
 
 ## Payout model
 
-To calculate rewards, the service uses the configured values per FAT type:
+To calculate rewards, the service uses the configured values per FAT type.
+
+If you want strategic FATs to reward 1,000,000 ISK and regular FATs to reward 500,000 ISK, the example calculation is:
 
 ```python
 amount = calculate_member_payout(
     strategic_fats=3,
     regular_fats=2,
-    strategic_rate=500000,
-    regular_rate=250000,
+    strategic_rate=1000000,
+    regular_rate=500000,
 )
-# => 2000000
+# => 4000000
 ```
+
+Use those values in the plugin admin or in your payout logic as actual numeric settings. Do not paste this example into `local.py` at the top level because Django executes that file during startup.
 
 This is a plugin scaffold: the invoice / tax integration must be implemented against the specific corp billing plugin used in your Alliance Auth install.
