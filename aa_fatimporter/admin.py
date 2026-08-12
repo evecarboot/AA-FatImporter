@@ -47,7 +47,6 @@ class FatImportSettingsAdmin(admin.ModelAdmin):
                     "reward_for_strategic_fat",
                     "reward_for_regular_fat",
                     "webhook_url",
-                    "below_threshold_role_id",
                 )
             },
         ),

@@ -38,7 +38,6 @@ class FatImportSettings(models.Model):
     # Shared payout settings
     payout_enabled = models.BooleanField(default=False)
     same_group_for_both = models.BooleanField(default=False)
-    below_threshold_role_id = models.BigIntegerField(default=0, blank=True, null=True)
     reward_for_strategic_fat = models.DecimalField(max_digits=18, decimal_places=2, default=0)
     reward_for_regular_fat = models.DecimalField(max_digits=18, decimal_places=2, default=0)
     payout_method = models.CharField(
