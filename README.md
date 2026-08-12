@@ -44,18 +44,113 @@ Admins should configure:
 
 ## Installation in Alliance Auth
 
-1. Place this app in your Alliance Auth project under a Python package path.
-2. Add `aa_fatimporter` to `INSTALLED_APPS`.
-3. Run migrations.
-4. Import the alliance CSV from the admin or a custom web view for alliance reporting.
-5. Configure the corp FAT source, corp target, and group names.
-6. Configure the corp payout settings if payouts are enabled.
+This plugin needs to be installed into an existing Alliance Auth 5.x project and then wired into the Django app and URL config before it will work.
+
+### 1. Install the package
+
+Install it into the same Python environment as your Alliance Auth project.
+
+Using GitHub +git import in AA:
+
+```text
+https://github.com/<your-github-user>/<your-repo-name>.git
+```
+
+Example:
+
+```text
+https://github.com/YourUsername/aa-fatimporter.git
+```
+
+Or manually in the project venv:
+
+```bash
+pip install git+https://github.com/YourUsername/aa-fatimporter.git
+```
+
+### 2. Add the app to the Django settings
+
+Add the app to `INSTALLED_APPS` in your Alliance Auth project settings, usually in `local.py` or the app's settings module:
+
+```python
+INSTALLED_APPS += [
+    "aa_fatimporter",
+]
+```
+
+If you are also using AFAT as the corp FAT source, install and add it as well:
+
+```python
+INSTALLED_APPS += [
+    "afat",
+    "aa_fatimporter",
+]
+```
+
+### 3. Include the plugin URLs
+
+Add the app URLs into your main Alliance Auth `urls.py`:
+
+```python
+from django.urls import include, path
+
+urlpatterns = [
+    # ... existing url patterns ...
+    path("", include("aa_fatimporter.urls")),
+]
+```
+
+This exposes the FAT import page at the route created by the app, which is currently:
+
+```text
+/fat-import/
+```
+
+### 4. Run migrations
+
+From your Alliance Auth project root:
+
+```bash
+python manage.py migrate
+```
+
+### 5. Create the required AA groups
+
+Create the groups you want to use for:
+
+- alliance FAT compliance
+- corp FAT compliance
+
+Then enter the group names (or the group IDs if your runtime code is extended to use them) in the plugin settings.
+
+### 6. Configure the plugin in the admin
+
+Open the Alliance Auth admin and configure:
+
+- alliance FAT threshold
+- corp FAT threshold
+- alliance group name
+- corp group name
+- whether both rules should use the same group
+- payout settings
+- payout method
+- webhook URL
+
+### 7. Test the upload flow
+
+Go to the FAT import URL in your dev AA install and upload a sample alliance FAT CSV.
 
 ## AFAT as corp FAT source
 
 This plugin is designed to treat AFAT as the corp FAT source of truth for corp compliance checks. The alliance import remains a separate reporting dataset and is not used as the corp threshold source.
 
 When AFAT is installed, the plugin can read corp FAT data from the AFAT app. If AFAT is not installed or unavailable, the source lookup safely resolves to zero instead of crashing.
+
+## Invoice / payout integration notes
+
+The payout logic is scaffolded and can hook into a corp tax/invoice plugin, but the exact invoice integration depends on the billing plugin actually installed in your Alliance Auth environment.
+
+Before using payout mode in production, ensure the invoice plugin used by your corp is the one your Alliance Auth deployment actually exposes and that the expected invoice APIs or deduction hooks are available.
 
 ## GitHub +git import URL
 
