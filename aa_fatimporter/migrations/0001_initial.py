@@ -25,7 +25,6 @@ class Migration(migrations.Migration):
                 ('corp_group_enabled', models.BooleanField(default=False)),
                 ('payout_enabled', models.BooleanField(default=False)),
                 ('same_group_for_both', models.BooleanField(default=False)),
-                ('below_threshold_role_id', models.BigIntegerField(blank=True, default=0, null=True)),
                 ('reward_for_strategic_fat', models.DecimalField(decimal_places=2, default=0, max_digits=18)),
                 ('reward_for_regular_fat', models.DecimalField(decimal_places=2, default=0, max_digits=18)),
                 ('payout_method', models.CharField(choices=[('withdrawal', 'Member withdrawal'), ('invoice_deduction', 'Deduct from corp tax bill'), ('manual', 'No automatic payout')], default='withdrawal', max_length=32)),
