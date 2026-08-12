@@ -11,8 +11,8 @@ requires-python = ">=3.10"
 authors = [{ name = "Your Name" }]
 license = { text = "MIT" }
 
-[tool.setuptools]
-packages = ["aa_fatimporter"]
+[tool.setuptools.packages.find]
+include = ["aa_fatimporter*"]
 
 [tool.setuptools.package-data]
 aa_fatimporter = ["templates/**/*.html"]
