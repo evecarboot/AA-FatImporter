@@ -15,4 +15,6 @@ license = { text = "MIT" }
 include = ["aa_fatimporter*"]
 
 [tool.setuptools.package-data]
-aa_fatimporter = ["templates/**/*.html"]
+aa_fatimporter = [
+    "templates/aa_fatimporter/*.html"
+]
