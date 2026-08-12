@@ -33,6 +33,22 @@ Admins should configure:
 4. Import the CSV from the admin or a custom web view.
 5. Configure the corp threshold and payout settings.
 
+## GitHub +git import URL
+
+Use this repository URL in the Alliance Auth +git import / plugin installer when installing directly from GitHub:
+
+```text
+https://github.com/<your-github-user>/<your-repo-name>.git
+```
+
+For example, if your repo is named `aa-fatimporter` and your GitHub username is `YourUsername`, use:
+
+```text
+https://github.com/YourUsername/aa-fatimporter.git
+```
+
+If you are using a private repo, make sure the install user has access to that repository.
+
 ## Example CSV structure
 
 The importer expects the same columns as the provided export, including:
