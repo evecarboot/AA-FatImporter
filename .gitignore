@@ -1,0 +1,22 @@
+# Local environment
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Editor settings
+.vscode/
+.idea/
+
+# Local test artifacts
+/tests/
+*.log
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
