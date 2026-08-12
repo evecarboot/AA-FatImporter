@@ -2,14 +2,30 @@ from django.db import models
 
 
 class FatImportSettings(models.Model):
-    """Admin-configurable settings for the FAT importer."""
+    """Admin-configurable settings for the FAT importer.
+
+    The alliance CSV is imported as a reporting dataset. Corp and alliance compliance are tracked
+    separately and can use the same AA group if the admin chooses.
+    """
 
     name = models.CharField(max_length=64, default="main")
-    required_fats_per_90_days = models.PositiveIntegerField(default=10)
-    below_threshold_group_name = models.CharField(max_length=255, blank=True, default="")
-    below_threshold_role_id = models.BigIntegerField(default=0, blank=True, null=True)
-    remove_group_above_fats = models.PositiveIntegerField(default=15)
+
+    # Alliance FAT import/reporting settings
+    alliance_required_fats_per_90_days = models.PositiveIntegerField(default=10)
+    alliance_remove_above_fats = models.PositiveIntegerField(default=15)
+    alliance_compliance_group_name = models.CharField(max_length=255, blank=True, default="")
+    alliance_group_enabled = models.BooleanField(default=False)
+
+    # Corp FAT compliance settings
+    corp_required_fats_per_90_days = models.PositiveIntegerField(default=10)
+    corp_remove_group_above_fats = models.PositiveIntegerField(default=15)
+    corp_compliance_group_name = models.CharField(max_length=255, blank=True, default="")
+    corp_group_enabled = models.BooleanField(default=False)
+
+    # Shared payout settings
     payout_enabled = models.BooleanField(default=False)
+    same_group_for_both = models.BooleanField(default=False)
+    below_threshold_role_id = models.BigIntegerField(default=0, blank=True, null=True)
     reward_for_strategic_fat = models.DecimalField(max_digits=18, decimal_places=2, default=0)
     reward_for_regular_fat = models.DecimalField(max_digits=18, decimal_places=2, default=0)
     payout_method = models.CharField(

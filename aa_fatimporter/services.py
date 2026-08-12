@@ -20,7 +20,11 @@ def _parse_int(value):
 
 
 def parse_fat_csv(csv_content: str) -> List[Dict[str, int | str]]:
-    """Parse a CSV export from the alliance FAT report into structured rows."""
+    """Parse an alliance FAT CSV export into structured rows for reporting.
+
+    This data is intentionally separate from corp FAT compliance; the corp threshold
+    should be evaluated from corp-side AA data, not from the imported alliance CSV.
+    """
     if not csv_content:
         return []
 
@@ -54,17 +58,61 @@ def calculate_member_payout(strategic_fats: int, regular_fats: int, strategic_ra
 
 
 def evaluate_member_threshold(member_total_fats: int, required_fats: int) -> bool:
-    """Return True when the member is below the configured threshold and should receive the corp role."""
+    """Return True when the corp member is below the configured corp FAT threshold."""
     return member_total_fats < required_fats
 
 
+def evaluate_corp_fat_threshold(corp_total_fats: int, corp_required_fats: int) -> bool:
+    """This is the corp-side check used for the corp compliance group."""
+    return corp_total_fats < corp_required_fats
+
+
+def get_corp_fat_total_from_source(source_name: str, user=None, days: int = 90) -> int:
+    """Return the corp FAT total from the configured corp data source.
+
+    AFAT is treated as a corp FAT data source for the corp compliance logic. When the source is not
+    installed or unavailable, this function safely returns zero instead of crashing.
+    """
+    if source_name == "afat":
+        try:
+            from afat.models import FatLink
+        except ImportError:
+            return 0
+
+        if user is not None:
+            try:
+                return FatLink.objects.filter(
+                    character__character_ownership__user=user,
+                ).count()
+            except Exception:
+                return 0
+        return 0
+
+    return 0
+
+
 def resolve_group_action(member_total_fats: int, required_fats: int, remove_above_fats: int | None = None) -> str:
-    """Return action needed for the FAT compliance group: add, remove, or none."""
+    """Return the action for a compliance group based on a total FAT count.
+
+    The alliance CSV import remains separate from corp FAT enforcement. This helper is used by both
+    alliance and corp compliance checks when a configured threshold is applied.
+    """
     if remove_above_fats is not None and member_total_fats >= remove_above_fats:
         return "remove"
     if member_total_fats < required_fats:
         return "add"
     return "none"
+
+
+def resolve_alliance_and_corp_group_actions(alliance_total_fats: int, corp_total_fats: int, alliance_required: int, corp_required: int, alliance_remove_above: int | None = None, corp_remove_above: int | None = None):
+    """Return the group actions for both alliance and corp compliance checks.
+
+    The admin may choose whether both checks target the same AA group.
+    """
+    return {
+        "alliance": resolve_group_action(alliance_total_fats, alliance_required, alliance_remove_above),
+        "corp": resolve_group_action(corp_total_fats, corp_required, corp_remove_above),
+    }
 
 
 def sync_member_group(user, member_total_fats: int, required_fats: int, group_name: str | None = None, group_id: int | None = None, remove_above_fats: int | None = 15):
