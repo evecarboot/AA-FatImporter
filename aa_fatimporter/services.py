@@ -122,6 +122,60 @@ def resolve_group_selection_config(same_group_for_both: bool):
     return {"mode": "dual", "fields": ["alliance_group", "corp_group"]}
 
 
+def aggregate_member_fat_totals(records: List[Dict[str, int | str]]) -> Dict[str, int]:
+    """Aggregate FAT totals by member name, normalizing to lowercase for comparison."""
+    totals: Dict[str, int] = {}
+    for record in records:
+        name = str(record.get("character_name") or "").strip()
+        if not name:
+            continue
+        normalized = name.lower()
+        totals[normalized] = totals.get(normalized, 0) + int(record.get("total_fats", 0) or 0)
+    return totals
+
+
+def resolve_user_for_character_name(character_name: str):
+    """Best-effort lookup for an AA user by main character name."""
+    if not character_name:
+        return None
+
+    try:
+        from django.contrib.auth import get_user_model
+        User = get_user_model()
+        return User.objects.filter(profile__main_character__character_name__iexact=character_name).first()
+    except Exception:
+        return None
+
+
+def apply_member_fat_rules(records: List[Dict[str, int | str]], settings) -> Dict[str, object]:
+    """Evaluate member FATs against configured alliance/corp thresholds and return actions.
+
+    This is the runtime enforcement layer used after the CSV import completes.
+    """
+    totals = aggregate_member_fat_totals(records)
+    members: Dict[str, Dict[str, object]] = {}
+
+    for name, total in totals.items():
+        alliance_action = resolve_group_action(
+            total,
+            getattr(settings, "alliance_required_fats_per_90_days", 0),
+            getattr(settings, "alliance_remove_above_fats", None),
+        )
+        corp_action = resolve_group_action(
+            total,
+            getattr(settings, "corp_required_fats_per_90_days", 0),
+            getattr(settings, "corp_remove_group_above_fats", None),
+        )
+        members[name] = {
+            "character_name": name,
+            "total_fats": total,
+            "alliance_action": alliance_action,
+            "corp_action": corp_action,
+        }
+
+    return {"totals": totals, "members": members}
+
+
 def sync_member_group(user, member_total_fats: int, required_fats: int, group_name: str | None = None, group_id: int | None = None, remove_above_fats: int | None = 15):
     """Add or remove an Alliance Auth group for the member based on the FAT threshold."""
     if not user or not group_name and group_id is None:

@@ -1,15 +1,25 @@
 from django.contrib import messages
+from django.contrib.auth.mixins import UserPassesTestMixin
 from django.shortcuts import redirect
 from django.views.generic import FormView
 
 from aa_fatimporter.forms import FatUploadForm
-from aa_fatimporter.services import parse_fat_csv
+from aa_fatimporter.models import FatImportSettings
+from aa_fatimporter.services import (
+    apply_member_fat_rules,
+    parse_fat_csv,
+    resolve_user_for_character_name,
+    sync_member_group,
+)
 
 
-class FatImportView(FormView):
+class FatImportView(UserPassesTestMixin, FormView):
     template_name = "aa_fatimporter/upload.html"
     form_class = FatUploadForm
     success_url = "/"
+
+    def test_func(self):
+        return self.request.user.is_authenticated and self.request.user.is_staff
 
     def form_valid(self, form):
         uploaded_file = form.cleaned_data["csv_file"]
@@ -20,5 +30,37 @@ class FatImportView(FormView):
             messages.error(self.request, "No valid FAT rows were found in the uploaded CSV.")
             return redirect(self.success_url)
 
-        messages.success(self.request, f"Imported {len(records)} FAT entries.")
+        settings = FatImportSettings.objects.first()
+        if settings is None:
+            settings = FatImportSettings.objects.create(name="main")
+
+        result = apply_member_fat_rules(records, settings)
+        member_details = result.get("members", {})
+
+        for name, details in member_details.items():
+            user = resolve_user_for_character_name(name)
+            if not user:
+                continue
+
+            group = getattr(settings, "alliance_group", None)
+            if getattr(settings, "same_group_for_both", False):
+                group = getattr(settings, "alliance_group", None) or getattr(settings, "corp_group", None)
+
+            if group is None:
+                continue
+
+            threshold = getattr(settings, "alliance_required_fats_per_90_days", 0)
+            remove_above = getattr(settings, "alliance_remove_above_fats", None)
+            sync_member_group(
+                user,
+                details.get("total_fats", 0),
+                threshold,
+                group_id=group.pk,
+                remove_above_fats=remove_above,
+            )
+
+        messages.success(
+            self.request,
+            f"Imported {len(records)} FAT entries and evaluated {len(member_details)} member totals.",
+        )
         return super().form_valid(form)
