@@ -42,22 +42,36 @@ class FatImportView(UserPassesTestMixin, FormView):
             if not user:
                 continue
 
-            group = getattr(settings, "alliance_group", None)
+            total_fats = details.get("total_fats", 0)
+
+            alliance_group = getattr(settings, "alliance_group", None)
+            corp_group = getattr(settings, "corp_group", None)
+
             if getattr(settings, "same_group_for_both", False):
-                group = getattr(settings, "alliance_group", None) or getattr(settings, "corp_group", None)
+                alliance_group = alliance_group or corp_group
+                corp_group = alliance_group
 
-            if group is None:
-                continue
+            if alliance_group is not None:
+                alliance_threshold = getattr(settings, "alliance_required_fats_per_90_days", 0)
+                alliance_remove_above = getattr(settings, "alliance_remove_above_fats", None)
+                sync_member_group(
+                    user,
+                    total_fats,
+                    alliance_threshold,
+                    group_id=alliance_group.pk,
+                    remove_above_fats=alliance_remove_above,
+                )
 
-            threshold = getattr(settings, "alliance_required_fats_per_90_days", 0)
-            remove_above = getattr(settings, "alliance_remove_above_fats", None)
-            sync_member_group(
-                user,
-                details.get("total_fats", 0),
-                threshold,
-                group_id=group.pk,
-                remove_above_fats=remove_above,
-            )
+            if corp_group is not None:
+                corp_threshold = getattr(settings, "corp_required_fats_per_90_days", 0)
+                corp_remove_above = getattr(settings, "corp_remove_group_above_fats", None)
+                sync_member_group(
+                    user,
+                    total_fats,
+                    corp_threshold,
+                    group_id=corp_group.pk,
+                    remove_above_fats=corp_remove_above,
+                )
 
         messages.success(
             self.request,

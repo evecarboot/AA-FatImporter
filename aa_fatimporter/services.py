@@ -94,10 +94,10 @@ def get_corp_fat_total_from_source(source_name: str, user=None, days: int = 90) 
 def resolve_group_action(member_total_fats: int, required_fats: int, remove_above_fats: int | None = None) -> str:
     """Return the action for a compliance group based on a total FAT count.
 
-    The alliance CSV import remains separate from corp FAT enforcement. This helper is used by both
-    alliance and corp compliance checks when a configured threshold is applied.
+    The removal threshold is treated as "above this value" rather than "at or above" to avoid
+    removing members exactly at the configured cutoff.
     """
-    if remove_above_fats is not None and member_total_fats >= remove_above_fats:
+    if remove_above_fats is not None and member_total_fats > remove_above_fats:
         return "remove"
     if member_total_fats < required_fats:
         return "add"
