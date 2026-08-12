@@ -86,15 +86,7 @@ pip install git+https://github.com/YourUsername/aa-fatimporter.git
 
 ### 2. Add the app to the Django settings
 
-Add the app to `INSTALLED_APPS` in your Alliance Auth project settings, usually in `local.py` or the app's settings module:
-
-```python
-INSTALLED_APPS += [
-    "aa_fatimporter",
-]
-```
-
-If you are also using AFAT as the corp FAT source, install and add it as well:
+Copy and paste the following into your Alliance Auth project `local.py` file:
 
 ```python
 INSTALLED_APPS += [
@@ -105,12 +97,18 @@ INSTALLED_APPS += [
 
 This is the only thing you should add to `local.py` for app registration. Do not put sample payout calculations at the top level of `local.py`.
 
-### 2a. Copy-paste example for the plugin admin values
+### 2a. Example payout values to use in the plugin admin
 
-Use these values as the payout example if you want a strategic FAT to pay 1,000,000 ISK and a regular FAT to pay 500,000 ISK:
+If you want strategic FATs to pay 1,000,000 ISK and regular FATs to pay 500,000 ISK, use these values in the plugin admin or in a runtime function:
 
 ```python
-# Example only: use in the plugin admin or a runtime function, not as top-level settings code
+reward_for_strategic_fat = 1000000
+reward_for_regular_fat = 500000
+```
+
+Example calculation only:
+
+```python
 amount = calculate_member_payout(
     strategic_fats=3,
     regular_fats=2,
@@ -120,12 +118,7 @@ amount = calculate_member_payout(
 # => 4000000
 ```
 
-If you want to store the rates as config values, use the actual numeric values in the plugin admin:
-
-```python
-reward_for_strategic_fat = 1000000
-reward_for_regular_fat = 500000
-```
+Do not paste the example calculation directly into `local.py` at the top level because Django executes that file during startup.
 
 ### 3. Include the plugin URLs
 
