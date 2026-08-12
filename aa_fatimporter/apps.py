@@ -6,3 +6,6 @@ class AAFatImporterConfig(AppConfig):
     name = "aa_fatimporter"
     label = "aa_fatimporter"
     verbose_name = "AA FAT Importer"
+
+    def ready(self):
+        import aa_fatimporter.hooks  # noqa: F401
