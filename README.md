@@ -11,6 +11,17 @@ The plugin is designed around two different data sources:
 
 This keeps the corp compliance rule separate from the alliance import and avoids using the alliance CSV as the corp threshold source.
 
+## Quick install checklist
+
+1. Install the package into your Alliance Auth environment.
+2. Add `aa_fatimporter` to `INSTALLED_APPS`.
+3. If using AFAT for corp FAT tracking, also install and add `afat`.
+4. Include the app URLs in your main AA `urls.py`.
+5. Run `python manage.py migrate`.
+6. Create the required AA groups.
+7. Open the admin and select the group dropdowns and thresholds.
+8. Test by visiting `/fat-import/` and uploading a sample alliance CSV.
+
 ## Features
 
 - Import alliance FAT CSV files manually for alliance reporting
