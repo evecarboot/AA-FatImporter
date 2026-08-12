@@ -1,3 +1,4 @@
+from django.contrib.auth.models import Group
 from django.db import models
 
 
@@ -13,13 +14,25 @@ class FatImportSettings(models.Model):
     # Alliance FAT import/reporting settings
     alliance_required_fats_per_90_days = models.PositiveIntegerField(default=10)
     alliance_remove_above_fats = models.PositiveIntegerField(default=15)
-    alliance_compliance_group_name = models.CharField(max_length=255, blank=True, default="")
+    alliance_group = models.ForeignKey(
+        Group,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="alliance_fat_group",
+    )
     alliance_group_enabled = models.BooleanField(default=False)
 
     # Corp FAT compliance settings
     corp_required_fats_per_90_days = models.PositiveIntegerField(default=10)
     corp_remove_group_above_fats = models.PositiveIntegerField(default=15)
-    corp_compliance_group_name = models.CharField(max_length=255, blank=True, default="")
+    corp_group = models.ForeignKey(
+        Group,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="corp_fat_group",
+    )
     corp_group_enabled = models.BooleanField(default=False)
 
     # Shared payout settings
@@ -39,6 +52,28 @@ class FatImportSettings(models.Model):
     )
     webhook_url = models.URLField(blank=True, default="")
     last_imported_at = models.DateTimeField(blank=True, null=True)
+
+    @property
+    def alliance_compliance_group_name(self):
+        return self.alliance_group.name if self.alliance_group else ""
+
+    @alliance_compliance_group_name.setter
+    def alliance_compliance_group_name(self, value):
+        if value:
+            self.alliance_group = Group.objects.filter(name=value).first()
+        else:
+            self.alliance_group = None
+
+    @property
+    def corp_compliance_group_name(self):
+        return self.corp_group.name if self.corp_group else ""
+
+    @corp_compliance_group_name.setter
+    def corp_compliance_group_name(self, value):
+        if value:
+            self.corp_group = Group.objects.filter(name=value).first()
+        else:
+            self.corp_group = None
 
     class Meta:
         verbose_name = "FAT import settings"

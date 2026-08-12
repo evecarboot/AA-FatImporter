@@ -115,6 +115,13 @@ def resolve_alliance_and_corp_group_actions(alliance_total_fats: int, corp_total
     }
 
 
+def resolve_group_selection_config(same_group_for_both: bool):
+    """Return the admin field layout for one or two group dropdowns."""
+    if same_group_for_both:
+        return {"mode": "single", "fields": ["alliance_group"]}
+    return {"mode": "dual", "fields": ["alliance_group", "corp_group"]}
+
+
 def sync_member_group(user, member_total_fats: int, required_fats: int, group_name: str | None = None, group_id: int | None = None, remove_above_fats: int | None = 15):
     """Add or remove an Alliance Auth group for the member based on the FAT threshold."""
     if not user or not group_name and group_id is None:

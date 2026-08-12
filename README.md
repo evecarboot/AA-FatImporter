@@ -31,16 +31,21 @@ Admins should configure:
 
 - alliance_required_fats_per_90_days
 - alliance_remove_above_fats
-- alliance_compliance_group_name
+- alliance_group
 - corp_required_fats_per_90_days
 - corp_remove_group_above_fats
-- corp_compliance_group_name
+- corp_group
 - same_group_for_both
 - payout_enabled
 - reward_for_strategic_fat
 - reward_for_regular_fat
 - payout_method
 - webhook_url
+
+The admin interface uses dropdowns rather than free-text group names. In practice:
+
+- if `same_group_for_both` is checked, you select one group only
+- if it is unchecked, you select an alliance group and a corp group separately
 
 ## Installation in Alliance Auth
 
@@ -121,7 +126,7 @@ Create the groups you want to use for:
 - alliance FAT compliance
 - corp FAT compliance
 
-Then enter the group names (or the group IDs if your runtime code is extended to use them) in the plugin settings.
+Then open the plugin admin and select them from the dropdowns. This is safer than entering a raw group name manually.
 
 ### 6. Configure the plugin in the admin
 
@@ -129,12 +134,17 @@ Open the Alliance Auth admin and configure:
 
 - alliance FAT threshold
 - corp FAT threshold
-- alliance group name
-- corp group name
-- whether both rules should use the same group
+- alliance group dropdown
+- corp group dropdown
+- same-group toggle
 - payout settings
 - payout method
 - webhook URL
+
+Recommended admin UX:
+
+- check `same_group_for_both` if you want one group to handle both checks
+- leave it unchecked if the alliance and corp checks should be different groups
 
 ### 7. Test the upload flow
 
