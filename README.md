@@ -173,6 +173,27 @@ The payout logic is scaffolded and can hook into a corp tax/invoice plugin, but 
 
 Before using payout mode in production, ensure the invoice plugin used by your corp is the one your Alliance Auth deployment actually exposes and that the expected invoice APIs or deduction hooks are available.
 
+## Updating the plugin
+
+When you want to pull the latest changes from GitHub into your Alliance Auth dev environment:
+
+1. Pull the latest code from your repository.
+2. If installed with GitHub +git import, update the plugin in the AA admin or reinstall from the same repo URL.
+3. If installed manually in the venv, run:
+
+```bash
+pip install --upgrade git+https://github.com/YourUsername/aa-fatimporter.git
+```
+
+4. Run the migrations again:
+
+```bash
+python manage.py migrate
+```
+
+5. Restart your Alliance Auth app process or reload the server/containers.
+6. Refresh the admin and check the settings still match your intended group and threshold configuration.
+
 ## GitHub +git import URL
 
 Use this repository URL in the Alliance Auth +git import / plugin installer when installing directly from GitHub:
