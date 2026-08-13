@@ -4,7 +4,10 @@ from datetime import timedelta
 from decimal import Decimal
 from typing import Dict, List
 
-from aa_fatimporter.models import FatImportSummarySettings
+from aa_fatimporter.models import (
+    FatImportSettings,
+    FatImportSummarySettings,
+)
 
 
 def _parse_int(value):
