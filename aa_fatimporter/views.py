@@ -51,7 +51,7 @@ class FatImportView(UserPassesTestMixin, FormView):
                 alliance_group = alliance_group or corp_group
                 corp_group = alliance_group
 
-            if alliance_group is not None:
+            if getattr(settings, "alliance_group_enabled", False) and alliance_group is not None:
                 alliance_threshold = getattr(settings, "alliance_required_fats_per_90_days", 0)
                 alliance_remove_above = getattr(settings, "alliance_remove_above_fats", None)
                 sync_member_group(
@@ -62,7 +62,7 @@ class FatImportView(UserPassesTestMixin, FormView):
                     remove_above_fats=alliance_remove_above,
                 )
 
-            if corp_group is not None:
+            if getattr(settings, "corp_group_enabled", False) and corp_group is not None:
                 corp_threshold = getattr(settings, "corp_required_fats_per_90_days", 0)
                 corp_remove_above = getattr(settings, "corp_remove_group_above_fats", None)
                 sync_member_group(
