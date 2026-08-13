@@ -1,10 +1,10 @@
 from django.contrib import messages
 from django.contrib.auth.mixins import UserPassesTestMixin
-from django.shortcuts import redirect
+from django.shortcuts import redirect, render
 from django.views.generic import FormView
 
 from aa_fatimporter.forms import FatUploadForm
-from aa_fatimporter.models import FatImportSettings
+from aa_fatimporter.models import FatImportMemberResult, FatImportRecord, FatImportSettings
 from aa_fatimporter.services import (
     apply_member_fat_rules,
     parse_fat_csv,
@@ -12,6 +12,28 @@ from aa_fatimporter.services import (
     send_import_summary_webhook,
     sync_member_group,
 )
+
+
+class FatLeaderboardView(UserPassesTestMixin):
+    def dispatch(self, request, *args, **kwargs):
+        if not request.user.is_authenticated or not request.user.is_staff:
+            return redirect("/")
+        return super().dispatch(request, *args, **kwargs)
+
+    def get(self, request):
+        settings = FatImportSettings.objects.first()
+        latest = FatImportRecord.objects.select_related("settings").first()
+        members = []
+        if latest:
+            members = list(latest.member_results.all())
+
+        context = {
+            "settings": settings,
+            "latest_import": latest,
+            "members": sorted(members, key=lambda item: (-item.total_fats, item.character_name)),
+            "title": getattr(settings, "summary_title", "FAT Leaderboard"),
+        }
+        return render(request, "aa_fatimporter/leaderboard.html", context)
 
 
 class FatImportView(UserPassesTestMixin, FormView):
@@ -38,8 +60,28 @@ class FatImportView(UserPassesTestMixin, FormView):
         result = apply_member_fat_rules(records, settings)
         member_details = result.get("members", {})
 
+        import_record = FatImportRecord.objects.create(
+            settings=settings,
+            total_records=len(records),
+            total_members=len(member_details),
+            required_fats=getattr(settings, "alliance_required_fats_per_90_days", 0),
+            remove_above_fats=getattr(settings, "alliance_remove_above_fats", 0),
+        )
+
         for name, details in member_details.items():
             user = resolve_user_for_character_name(name)
+            below_minimum = details.get("total_fats", 0) < getattr(settings, "alliance_required_fats_per_90_days", 0)
+            above_remove = details.get("total_fats", 0) > getattr(settings, "alliance_remove_above_fats", 0)
+            FatImportMemberResult.objects.create(
+                record=import_record,
+                character_name=name,
+                total_fats=details.get("total_fats", 0),
+                alliance_action=details.get("alliance_action", "none"),
+                corp_action=details.get("corp_action", "none"),
+                below_alliance_minimum=below_minimum,
+                above_remove_threshold=above_remove,
+            )
+
             if not user:
                 continue
 
@@ -74,7 +116,7 @@ class FatImportView(UserPassesTestMixin, FormView):
                     remove_above_fats=corp_remove_above,
                 )
 
-        if getattr(settings, "webhook_url", ""):
+        if getattr(settings, "webhook_enabled", False) and getattr(settings, "webhook_url", ""):
             send_import_summary_webhook(records, settings)
 
         messages.success(

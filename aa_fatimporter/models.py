@@ -50,6 +50,10 @@ class FatImportSettings(models.Model):
         default="withdrawal",
     )
     webhook_url = models.URLField(blank=True, default="")
+    webhook_enabled = models.BooleanField(default=False)
+    post_import_summary = models.BooleanField(default=False)
+    summary_title = models.CharField(max_length=128, default="FAT Import Summary")
+    dashboard_top_count = models.PositiveIntegerField(default=5)
     last_imported_at = models.DateTimeField(blank=True, null=True)
 
     @property
@@ -80,3 +84,50 @@ class FatImportSettings(models.Model):
 
     def __str__(self):
         return self.name
+
+
+class FatImportRecord(models.Model):
+    """Store a single CSV import and its summary totals."""
+
+    settings = models.ForeignKey(
+        FatImportSettings,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="fat_import_records",
+    )
+    imported_at = models.DateTimeField(auto_now_add=True)
+    source_label = models.CharField(max_length=64, default="alliance_csv")
+    total_records = models.PositiveIntegerField(default=0)
+    total_members = models.PositiveIntegerField(default=0)
+    required_fats = models.PositiveIntegerField(default=0)
+    remove_above_fats = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ["-imported_at"]
+
+    def __str__(self):
+        return f"FAT import {self.imported_at:%Y-%m-%d %H:%M}"
+
+
+class FatImportMemberResult(models.Model):
+    """Store per-member FAT totals and status for each import."""
+
+    record = models.ForeignKey(
+        FatImportRecord,
+        on_delete=models.CASCADE,
+        related_name="member_results",
+    )
+    character_name = models.CharField(max_length=255)
+    total_fats = models.PositiveIntegerField(default=0)
+    alliance_action = models.CharField(max_length=16, default="none")
+    corp_action = models.CharField(max_length=16, default="none")
+    below_alliance_minimum = models.BooleanField(default=False)
+    above_remove_threshold = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-total_fats", "character_name"]
+
+    def __str__(self):
+        return f"{self.character_name}: {self.total_fats} FATs"
