@@ -1,7 +1,7 @@
 from django.contrib import messages
 from django.contrib.auth.mixins import UserPassesTestMixin
 from django.shortcuts import redirect, render
-from django.views.generic import FormView
+from django.views.generic import FormView, View
 
 from aa_fatimporter.forms import FatUploadForm
 from aa_fatimporter.models import FatImportMemberResult, FatImportRecord, FatImportSettings
@@ -14,7 +14,7 @@ from aa_fatimporter.services import (
 )
 
 
-class FatLeaderboardView(UserPassesTestMixin):
+class FatLeaderboardView(UserPassesTestMixin, View):
     def dispatch(self, request, *args, **kwargs):
         if not request.user.is_authenticated or not request.user.is_staff:
             return redirect("/")
