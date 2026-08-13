@@ -29,11 +29,13 @@ class FatDashboardMenuItem(MenuItemHook):
 
 
 @hooks.register("menu_item_hook")
-def register_menu():
-    return [
-        FatImportMenuItem(),
-        FatDashboardMenuItem(),
-    ]
+def register_import_menu():
+    return FatImportMenuItem()
+
+
+@hooks.register("menu_item_hook")
+def register_dashboard_menu():
+    return FatDashboardMenuItem()
 
 
 @hooks.register("url_hook")
