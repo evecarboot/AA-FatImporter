@@ -1,15 +1,20 @@
 # AA FAT Importer
 
-Simple Alliance Auth plugin for importing alliance FAT CSVs and applying group-based FAT compliance rules.
+Alliance Auth plugin for tracking FAT compliance, importing alliance FAT CSV data, and syncing group membership based on 90-day FAT activity.
 
 ## What it does
 
-- Imports alliance FAT CSV data
-- Aggregates totals per character
-- Supports alliance and corp FAT thresholds
-- Optionally uses the same AA group for both checks
-- Adds or removes the configured group based on FAT counts
-- Uses AFAT as the corp-side FAT source when available
+- Imports alliance FAT CSV data as a reporting dataset
+- Tracks alliance and corp FAT compliance separately
+- Supports independent minimum FAT thresholds for alliance and corp checks
+- Supports a single shared group option when both types should use the same group
+- Automatically adds members to the configured group when they fall below the compliance threshold
+- Removes members from the configured group when they exceed the remove-above threshold
+- Supports AFAT as the corp-side FAT data source when available
+- Stores each import and per-member results for later review
+- Provides a FAT leaderboard dashboard for recent compliance status
+- Sends a Discord summary webhook after CSV import when configured
+- Supports optional payout configuration for FAT reward logic
 
 ## Install
 
@@ -18,7 +23,7 @@ Simple Alliance Auth plugin for importing alliance FAT CSVs and applying group-b
 Use this in the +git import / package installer:
 
 ```text
-https://github.com/<your-github-user>/<your-repo-name>.git
+https://github.com/<your-github-user>/aa-fatimporter.git
 ```
 
 Example:
@@ -29,7 +34,7 @@ https://github.com/YourUsername/aa-fatimporter.git
 
 ### 2. Add the app to local.py
 
-Copy this into your Alliance Auth project `local.py`:
+Add the app to your Alliance Auth project `local.py`:
 
 ```python
 INSTALLED_APPS += [
@@ -38,7 +43,7 @@ INSTALLED_APPS += [
 ]
 ```
 
-Then include the app URLs in your main `urls.py`:
+Then include the plugin URLs in your main `urls.py`:
 
 ```python
 from django.urls import include, path
@@ -49,7 +54,7 @@ urlpatterns = [
 ]
 ```
 
-### 3. Run migrations
+### 3. Run migrations and static collection
 
 ```bash
 python manage.py migrate
@@ -58,15 +63,17 @@ python manage.py collectstatic --noinput
 
 ### 4. Configure in admin
 
-Create your AA groups, then in the Django admin set:
+In Django admin, configure:
 
-- alliance FAT threshold
-- corp FAT threshold
+- alliance FAT requirements
+- corp FAT requirements
 - alliance group
 - corp group
-- same-group toggle if you want one group for both checks
+- shared-group toggle if both checks should use one group
+- import summary webhook settings
+- optional payout configuration
 
-### 5. Use the page
+### 5. Use the plugin
 
 Open:
 
@@ -76,8 +83,16 @@ Open:
 
 Upload the alliance FAT CSV export.
 
+The dashboard is available at:
+
+```text
+/fat-leaderboard/
+```
+
 ## Notes
 
-- The alliance CSV is used as a reporting/import source.
-- Corp FAT compliance is intended to use AFAT as the corp-side source.
-- Do not paste Python examples directly into `local.py` at module level; Django runs that file on startup.
+- The alliance CSV is the main import/reporting source.
+- Corp FAT compliance can use AFAT data as a separate source.
+- The plugin is designed for Alliance Auth 5.x and uses the AA 5 hook and URL registration patterns.
+- The import summary Discord webhook is configured via the dedicated FAT import summary settings model.
+- The payout webhook is kept separate from the import summary webhook.
