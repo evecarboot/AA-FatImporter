@@ -4,12 +4,24 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "aa-fatimporter"
-version = "0.1.12"
+version = "0.1.13"
 description = "Alliance Auth plugin for tracking corp member FAT imports, corp roles, and ISK payout logic"
 readme = "README.md"
 requires-python = ">=3.10"
 authors = [{ name = "Your Name" }]
 license = { text = "MIT" }
+dependencies = [
+    "allianceauth>=5.2.0,<6",
+]
+classifiers = [
+    "Framework :: Django",
+    "Framework :: Django :: 4.2",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "License :: OSI Approved :: MIT License",
+]
 
 [tool.setuptools.packages.find]
 include = ["aa_fatimporter*"]

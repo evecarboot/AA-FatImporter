@@ -9,12 +9,12 @@ def register_menu():
             text="Import FATs",
             classes="fas fa-file-csv",
             url_name="aa_fatimport_upload",
-            order=9999,
+            order=100,
         ),
         MenuItemHook(
             text="FAT Dashboard",
             classes="fas fa-chart-line",
             url_name="aa_fatimport_dashboard",
-            order=9999,
+            order=101,
         ),
     ]
