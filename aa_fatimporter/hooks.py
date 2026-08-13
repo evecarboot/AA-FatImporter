@@ -12,8 +12,8 @@ class FatImportMenuItem(MenuItemHook):
             self,
             _("Import FATs"),
             "fas fa-file-csv",
-            "aa_fatimport_upload",
-            navactive=["aa_fatimport_upload"],
+            "aa_fatimporter:aa_fatimport_upload",
+            navactive=["aa_fatimporter:aa_fatimport_upload"],
         )
 
 
@@ -23,8 +23,8 @@ class FatDashboardMenuItem(MenuItemHook):
             self,
             _("FAT Dashboard"),
             "fas fa-chart-line",
-            "aa_fatimport_dashboard",
-            navactive=["aa_fatimport_dashboard"],
+            "aa_fatimporter:aa_fatimport_dashboard",
+            navactive=["aa_fatimporter:aa_fatimport_dashboard"],
         )
 
 
