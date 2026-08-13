@@ -122,10 +122,15 @@ class FatImportView(UserPassesTestMixin, FormView):
                 )
 
         summary_settings = FatImportSummarySettings.objects.first()
-        if summary_settings is None and settings is not None:
+        if settings is not None and (
+            summary_settings is None
+            or not getattr(summary_settings, "webhook_url", "")
+            and not getattr(summary_settings, "webhook_enabled", False)
+            and not getattr(summary_settings, "post_import_summary", False)
+        ):
             summary_settings = settings
 
-        if getattr(summary_settings, "post_import_summary", False) and getattr(summary_settings, "webhook_url", ""):
+        if getattr(summary_settings, "post_import_summary", False) or getattr(summary_settings, "webhook_url", ""):
             send_import_summary_webhook(records, summary_settings)
 
         messages.success(

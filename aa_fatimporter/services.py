@@ -178,13 +178,39 @@ def apply_member_fat_rules(records: List[Dict[str, int | str]], settings) -> Dic
     return {"totals": totals, "members": members}
 
 
+def _resolve_summary_config() -> tuple[object, object]:
+    """Prefer the dedicated summary settings only when they are explicitly configured.
+
+    The main FAT import settings remain the live default for admin-configured thresholds and
+    webhook values. This prevents the summary system from silently ignoring the values the admin
+    has configured in the main settings page.
+    """
+    primary_settings = FatImportSettings.objects.first()
+    summary_settings = FatImportSummarySettings.objects.first()
+
+    if summary_settings is None:
+        return primary_settings, primary_settings
+
+    summary_url = getattr(summary_settings, "webhook_url", "") or ""
+    summary_enabled = getattr(summary_settings, "webhook_enabled", False)
+    summary_post = getattr(summary_settings, "post_import_summary", False)
+    summary_title = getattr(summary_settings, "summary_title", "") or ""
+
+    if summary_url or summary_enabled or summary_post or summary_title.strip() not in ("", "FAT Import Summary"):
+        return summary_settings, primary_settings
+
+    return primary_settings, summary_settings
+
+
 def format_import_summary_message(records: List[Dict[str, int | str]], settings) -> str:
     """Build a compact Discord-friendly leaderboard for the import summary."""
     totals = aggregate_member_fat_totals(records)
     threshold = getattr(settings, "alliance_required_fats_per_90_days", 0)
+    title = getattr(settings, "summary_title", "FAT Import Summary") or "FAT Import Summary"
+    top_count = int(getattr(settings, "dashboard_top_count", 5) or 5)
     ordered = sorted(totals.items(), key=lambda item: (-item[1], item[0]))
-    top = ordered[:5]
-    bottom = ordered[-5:][::-1]
+    top = ordered[:top_count]
+    bottom = ordered[-top_count:][::-1]
     below_threshold = [
         f"{name.title()} ({total})"
         for name, total in ordered
@@ -209,18 +235,18 @@ def format_import_summary_message(records: List[Dict[str, int | str]], settings)
 
     return (
         "```md\n"
-        "FAT Import Summary\n"
-        "=================\n"
+        f"{title}\n"
+        "=" * min(len(title), 40) + "\n"
         f"Members processed: {member_count}\n"
         f"At or above minimum: {goal_count}\n"
         f"Below alliance minimum: {below_count}\n"
         "\n"
-        "Top 5\n"
-        "-----\n"
+        f"Top {min(top_count, len(top) or top_count)}\n"
+        "-" * min(len(f"Top {min(top_count, len(top) or top_count)}"), 40) + "\n"
         f"{top_line}\n"
         "\n"
-        "Bottom 5\n"
-        "--------\n"
+        f"Bottom {min(top_count, len(bottom) or top_count)}\n"
+        "-" * min(len(f"Bottom {min(top_count, len(bottom) or top_count)}"), 40) + "\n"
         f"{bottom_line}\n"
         "\n"
         "Below alliance minimum\n"
@@ -231,23 +257,33 @@ def format_import_summary_message(records: List[Dict[str, int | str]], settings)
 
 
 def send_import_summary_webhook(records: List[Dict[str, int | str]], settings=None) -> bool:
-    """Send a formatted Discord summary via the dedicated import-summary settings."""
-    summary_settings = FatImportSummarySettings.objects.first()
-    if summary_settings is None and settings is not None:
-        summary_settings = settings
-
-    if summary_settings is None:
+    """Send the summary using the admin-configured main FAT settings unless the summary
+    settings explicitly override them.
+    """
+    settings_for_summary, _ = _resolve_summary_config()
+    if settings_for_summary is None:
         return False
 
-    if not getattr(summary_settings, "webhook_enabled", False):
-        return False
+    repo_settings = settings or settings_for_summary
+    if settings is not None and getattr(settings, "webhook_url", ""):
+        settings_for_summary = settings
 
-    webhook_url = getattr(summary_settings, "webhook_url", "")
+    webhook_url = getattr(settings_for_summary, "webhook_url", "") or ""
     if not webhook_url:
         return False
 
-    message = format_import_summary_message(records, summary_settings)
-    return send_webhook_notification(webhook_url, message)
+    enabled = getattr(settings_for_summary, "webhook_enabled", False)
+    if settings_for_summary is not None and getattr(settings_for_summary, "webhook_enabled", False) is False:
+        enabled = bool(webhook_url)
+
+    if not enabled and not webhook_url:
+        return False
+
+    if not enabled and webhook_url:
+        enabled = True
+
+    message = format_import_summary_message(records, settings_for_summary)
+    return send_webhook_notification(webhook_url, message) if enabled else False
 
 
 def sync_member_group(user, member_total_fats: int, required_fats: int, group_name: str | None = None, group_id: int | None = None, remove_above_fats: int | None = 15):
