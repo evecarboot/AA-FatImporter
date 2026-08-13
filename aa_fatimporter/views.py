@@ -20,10 +20,8 @@ from aa_fatimporter.services import (
 
 
 class FatLeaderboardView(UserPassesTestMixin, View):
-    def dispatch(self, request, *args, **kwargs):
-        if not request.user.is_authenticated or not request.user.is_staff:
-            return redirect("/")
-        return super().dispatch(request, *args, **kwargs)
+    def test_func(self):
+        return self.request.user.is_authenticated and self.request.user.is_staff
 
     def get(self, request):
         settings = FatImportSettings.objects.first()
