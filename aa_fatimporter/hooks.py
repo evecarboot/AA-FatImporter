@@ -1,5 +1,5 @@
 from allianceauth import hooks
-from allianceauth.services.hooks import MenuItemHook
+from allianceauth.menu.hooks import MenuItemHook
 
 
 @hooks.register("menu_item_hook")
