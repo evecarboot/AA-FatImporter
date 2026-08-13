@@ -50,10 +50,6 @@ class FatImportSettings(models.Model):
         default="withdrawal",
     )
     webhook_url = models.URLField(blank=True, default="")
-    webhook_enabled = models.BooleanField(default=False)
-    post_import_summary = models.BooleanField(default=False)
-    summary_title = models.CharField(max_length=128, default="FAT Import Summary")
-    dashboard_top_count = models.PositiveIntegerField(default=5)
     last_imported_at = models.DateTimeField(blank=True, null=True)
 
     @property
