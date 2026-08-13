@@ -1,6 +1,26 @@
 from django.contrib import admin
 
-from aa_fatimporter.models import FatImportSettings
+from aa_fatimporter.models import FatImportSettings, FatImportSummarySettings
+
+
+@admin.register(FatImportSummarySettings)
+class FatImportSummarySettingsAdmin(admin.ModelAdmin):
+    list_display = ("name", "webhook_enabled", "post_import_summary", "summary_title")
+    search_fields = ("name", "summary_title")
+    fieldsets = (
+        (
+            "Discord import summary webhook",
+            {
+                "fields": (
+                    "webhook_enabled",
+                    "webhook_url",
+                    "post_import_summary",
+                    "summary_title",
+                    "dashboard_top_count",
+                )
+            },
+        ),
+    )
 
 
 @admin.register(FatImportSettings)
@@ -46,11 +66,7 @@ class FatImportSettingsAdmin(admin.ModelAdmin):
                     "payout_method",
                     "reward_for_strategic_fat",
                     "reward_for_regular_fat",
-                    "webhook_enabled",
                     "webhook_url",
-                    "post_import_summary",
-                    "summary_title",
-                    "dashboard_top_count",
                 )
             },
         ),

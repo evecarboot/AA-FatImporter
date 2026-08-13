@@ -86,6 +86,24 @@ class FatImportSettings(models.Model):
         return self.name
 
 
+class FatImportSummarySettings(models.Model):
+    """Dedicated admin settings for the post-import Discord summary webhook."""
+
+    name = models.CharField(max_length=64, default="main")
+    webhook_url = models.URLField(blank=True, default="")
+    webhook_enabled = models.BooleanField(default=False)
+    post_import_summary = models.BooleanField(default=False)
+    summary_title = models.CharField(max_length=128, default="FAT Import Summary")
+    dashboard_top_count = models.PositiveIntegerField(default=5)
+
+    class Meta:
+        verbose_name = "FAT import summary settings"
+        verbose_name_plural = "FAT import summary settings"
+
+    def __str__(self):
+        return self.name
+
+
 class FatImportRecord(models.Model):
     """Store a single CSV import and its summary totals."""
 

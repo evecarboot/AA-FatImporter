@@ -4,7 +4,12 @@ from django.shortcuts import redirect, render
 from django.views.generic import FormView, View
 
 from aa_fatimporter.forms import FatUploadForm
-from aa_fatimporter.models import FatImportMemberResult, FatImportRecord, FatImportSettings
+from aa_fatimporter.models import (
+    FatImportMemberResult,
+    FatImportRecord,
+    FatImportSettings,
+    FatImportSummarySettings,
+)
 from aa_fatimporter.services import (
     apply_member_fat_rules,
     parse_fat_csv,
@@ -22,6 +27,7 @@ class FatLeaderboardView(UserPassesTestMixin, View):
 
     def get(self, request):
         settings = FatImportSettings.objects.first()
+        summary_settings = FatImportSummarySettings.objects.first()
         latest = FatImportRecord.objects.select_related("settings").first()
         members = []
         if latest:
@@ -29,9 +35,10 @@ class FatLeaderboardView(UserPassesTestMixin, View):
 
         context = {
             "settings": settings,
+            "summary_settings": summary_settings,
             "latest_import": latest,
             "members": sorted(members, key=lambda item: (-item.total_fats, item.character_name)),
-            "title": getattr(settings, "summary_title", "FAT Leaderboard"),
+            "title": getattr(summary_settings or settings, "summary_title", "FAT Leaderboard"),
         }
         return render(request, "aa_fatimporter/leaderboard.html", context)
 
@@ -116,8 +123,12 @@ class FatImportView(UserPassesTestMixin, FormView):
                     remove_above_fats=corp_remove_above,
                 )
 
-        if getattr(settings, "webhook_enabled", False) and getattr(settings, "webhook_url", ""):
-            send_import_summary_webhook(records, settings)
+        summary_settings = FatImportSummarySettings.objects.first()
+        if summary_settings is None and settings is not None:
+            summary_settings = settings
+
+        if getattr(summary_settings, "post_import_summary", False) and getattr(summary_settings, "webhook_url", ""):
+            send_import_summary_webhook(records, summary_settings)
 
         messages.success(
             self.request,

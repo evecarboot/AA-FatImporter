@@ -4,6 +4,8 @@ from datetime import timedelta
 from decimal import Decimal
 from typing import Dict, List
 
+from aa_fatimporter.models import FatImportSummarySettings
+
 
 def _parse_int(value):
     if value is None:
@@ -228,12 +230,23 @@ def format_import_summary_message(records: List[Dict[str, int | str]], settings)
     )
 
 
-def send_import_summary_webhook(records: List[Dict[str, int | str]], settings) -> bool:
-    """Send a formatted Discord summary if a webhook URL is configured."""
-    webhook_url = getattr(settings, "webhook_url", "")
+def send_import_summary_webhook(records: List[Dict[str, int | str]], settings=None) -> bool:
+    """Send a formatted Discord summary via the dedicated import-summary settings."""
+    summary_settings = FatImportSummarySettings.objects.first()
+    if summary_settings is None and settings is not None:
+        summary_settings = settings
+
+    if summary_settings is None:
+        return False
+
+    if not getattr(summary_settings, "webhook_enabled", False):
+        return False
+
+    webhook_url = getattr(summary_settings, "webhook_url", "")
     if not webhook_url:
         return False
-    message = format_import_summary_message(records, settings)
+
+    message = format_import_summary_message(records, summary_settings)
     return send_webhook_notification(webhook_url, message)
 
 
