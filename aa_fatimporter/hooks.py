@@ -6,15 +6,17 @@ from allianceauth.menu.hooks import MenuItemHook
 def register_menu():
     return [
         MenuItemHook(
-            text="Import FATs",
-            classes="fas fa-file-csv",
-            url_name="aa_fatimport_upload",
-            order=100,
+            "Import FATs",
+            "fas fa-file-csv",
+            "aa_fatimport_upload",
+            100,
+            ["aa_fatimport_upload"],
         ),
         MenuItemHook(
-            text="FAT Dashboard",
-            classes="fas fa-chart-line",
-            url_name="aa_fatimport_dashboard",
-            order=101,
+            "FAT Dashboard",
+            "fas fa-chart-line",
+            "aa_fatimport_dashboard",
+            101,
+            ["aa_fatimport_dashboard"],
         ),
     ]
