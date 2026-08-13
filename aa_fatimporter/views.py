@@ -9,6 +9,7 @@ from aa_fatimporter.services import (
     apply_member_fat_rules,
     parse_fat_csv,
     resolve_user_for_character_name,
+    send_import_summary_webhook,
     sync_member_group,
 )
 
@@ -72,6 +73,9 @@ class FatImportView(UserPassesTestMixin, FormView):
                     group_id=corp_group.pk,
                     remove_above_fats=corp_remove_above,
                 )
+
+        if getattr(settings, "webhook_url", ""):
+            send_import_summary_webhook(records, settings)
 
         messages.success(
             self.request,

@@ -176,6 +176,67 @@ def apply_member_fat_rules(records: List[Dict[str, int | str]], settings) -> Dic
     return {"totals": totals, "members": members}
 
 
+def format_import_summary_message(records: List[Dict[str, int | str]], settings) -> str:
+    """Build a compact Discord-friendly leaderboard for the import summary."""
+    totals = aggregate_member_fat_totals(records)
+    threshold = getattr(settings, "alliance_required_fats_per_90_days", 0)
+    ordered = sorted(totals.items(), key=lambda item: (-item[1], item[0]))
+    top = ordered[:5]
+    bottom = ordered[-5:][::-1]
+    below_threshold = [
+        f"{name.title()} ({total})"
+        for name, total in ordered
+        if total < threshold
+    ]
+
+    top_line = "\n".join(
+        f"{index}. {name.title()} - {total} FATs"
+        for index, (name, total) in enumerate(top, start=1)
+    ) or "No members in top list."
+
+    bottom_line = "\n".join(
+        f"{index}. {name.title()} - {total} FATs"
+        for index, (name, total) in enumerate(bottom, start=1)
+    ) or "No members in bottom list."
+
+    below_line = ", ".join(below_threshold) if below_threshold else "None"
+
+    member_count = len(ordered)
+    below_count = len(below_threshold)
+    goal_count = sum(1 for _, total in ordered if total >= threshold)
+
+    return (
+        "```md\n"
+        "FAT Import Summary\n"
+        "=================\n"
+        f"Members processed: {member_count}\n"
+        f"At or above minimum: {goal_count}\n"
+        f"Below alliance minimum: {below_count}\n"
+        "\n"
+        "Top 5\n"
+        "-----\n"
+        f"{top_line}\n"
+        "\n"
+        "Bottom 5\n"
+        "--------\n"
+        f"{bottom_line}\n"
+        "\n"
+        "Below alliance minimum\n"
+        "----------------------\n"
+        f"{below_line}\n"
+        "```"
+    )
+
+
+def send_import_summary_webhook(records: List[Dict[str, int | str]], settings) -> bool:
+    """Send a formatted Discord summary if a webhook URL is configured."""
+    webhook_url = getattr(settings, "webhook_url", "")
+    if not webhook_url:
+        return False
+    message = format_import_summary_message(records, settings)
+    return send_webhook_notification(webhook_url, message)
+
+
 def sync_member_group(user, member_total_fats: int, required_fats: int, group_name: str | None = None, group_id: int | None = None, remove_above_fats: int | None = 15):
     """Add or remove an Alliance Auth group for the member based on the FAT threshold."""
     if not user or not group_name and group_id is None:
