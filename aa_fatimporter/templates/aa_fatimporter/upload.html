@@ -1,5 +1,7 @@
 {% extends "allianceauth/base-bs5.html" %}
 
+{% load i18n %}
+
 {% block title %}Import FATs{% endblock %}
 
 {% block content %}
@@ -23,7 +25,14 @@
                 <form method="post" enctype="multipart/form-data">
                     {% csrf_token %}
                     {{ form.as_p }}
-                    <button type="submit" class="btn btn-primary">Upload CSV</button>
+                    <div class="d-flex gap-2">
+                        <button type="submit" name="action" value="preview" class="btn btn-outline-secondary">
+                            <i class="fas fa-eye"></i> Preview
+                        </button>
+                        <button type="submit" name="action" value="apply" class="btn btn-primary">
+                            <i class="fas fa-file-import"></i> Upload &amp; Apply
+                        </button>
+                    </div>
                 </form>
             </div>
         </div>

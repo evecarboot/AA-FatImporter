@@ -1,1 +1,4 @@
-default_app_config = "aa_fatimporter.apps.AAFatImporterConfig"
+"""Initialize the app"""
+
+__version__ = "0.2.0"
+__title__ = "AA FAT Importer"

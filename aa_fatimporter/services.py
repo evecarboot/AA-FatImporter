@@ -1,5 +1,7 @@
 import csv
+import hashlib
 import io
+import logging
 from datetime import timedelta
 from decimal import Decimal
 from typing import Dict, List
@@ -7,7 +9,10 @@ from typing import Dict, List
 from aa_fatimporter.models import (
     FatImportSettings,
     FatImportSummarySettings,
+    FatPayoutRecord,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def _parse_int(value):
@@ -24,11 +29,28 @@ def _parse_int(value):
         return 0
 
 
-def parse_fat_csv(csv_content: str) -> List[Dict[str, int | str]]:
+def _find_column(row, preferred_name, fieldnames):
+    """Find a column value using the preferred name, with case-insensitive fallback."""
+    if preferred_name in row:
+        return row.get(preferred_name)
+    # Case-insensitive match
+    for fname in fieldnames:
+        if fname and fname.lower() == preferred_name.lower():
+            return row.get(fname)
+    # Fuzzy match: check if preferred_name is a substring of any fieldname
+    for fname in fieldnames:
+        if fname and preferred_name.lower() in fname.lower():
+            return row.get(fname)
+    return None
+
+
+def parse_fat_csv(csv_content: str, column_character: str = "Main Character",
+                  column_total_fats: str = "Total FATs",
+                  column_strategic_fats: str = "Strategic & Deployment") -> List[Dict[str, int | str]]:
     """Parse an alliance FAT CSV export into structured rows for reporting.
 
-    This data is intentionally separate from corp FAT compliance; the corp threshold
-    should be evaluated from corp-side AA data, not from the imported alliance CSV.
+    Column names are configurable to support different FAT export formats. Falls back
+    to case-insensitive and fuzzy matching when the exact column name isn't found.
     """
     if not csv_content:
         return []
@@ -37,29 +59,96 @@ def parse_fat_csv(csv_content: str) -> List[Dict[str, int | str]]:
     if reader.fieldnames is None:
         return []
 
+    fieldnames = reader.fieldnames
     records = []
     for row in reader:
-        if not row or not row.get("Main Character"):
+        if not row:
             continue
 
-        name = (row.get("Main Character") or "").strip()
+        name_raw = _find_column(row, column_character, fieldnames)
+        if not name_raw:
+            continue
+
+        name = (name_raw or "").strip()
         if not name:
             continue
+
+        total = _parse_int(_find_column(row, column_total_fats, fieldnames))
+        strategic = _parse_int(_find_column(row, column_strategic_fats, fieldnames))
 
         records.append(
             {
                 "character_name": name,
-                "total_fats": _parse_int(row.get("Total FATs")),
-                "strategic_fats": _parse_int(row.get("Strategic & Deployment")),
-                "regular_fats": _parse_int(row.get("Total FATs")) - _parse_int(row.get("Strategic & Deployment")),
+                "total_fats": total,
+                "strategic_fats": strategic,
+                "regular_fats": total - strategic,
             }
         )
     return records
 
 
-def calculate_member_payout(strategic_fats: int, regular_fats: int, strategic_rate: float, regular_rate: float) -> int:
-    """Return the member payout in ISK based on the configured FAT rates."""
-    return int((strategic_fats * strategic_rate) + (regular_fats * regular_rate))
+def compute_csv_hash(csv_content: str) -> str:
+    """Return a SHA-256 hash of the CSV content for duplicate detection."""
+    if not csv_content:
+        return ""
+    return hashlib.sha256(csv_content.encode("utf-8")).hexdigest()
+
+
+def apply_strategic_weighting(total_fats: int, strategic_fats: int, multiplier) -> int:
+    """Apply a strategic FAT multiplier to compute a weighted total for compliance.
+
+    Weighted total = regular_fats + (strategic_fats * multiplier).
+    Returns an integer (rounded down) for comparison against thresholds.
+    """
+    multiplier_dec = Decimal(str(multiplier))
+    regular = total_fats - strategic_fats
+    weighted = Decimal(str(regular)) + (Decimal(str(strategic_fats)) * multiplier_dec)
+    return int(weighted)
+
+
+def log_audit_event(action: str, user=None, character_name: str = "", details: str = ""):
+    """Create a FatAuditLog entry. Silently fails if the table doesn't exist."""
+    try:
+        from aa_fatimporter.models import FatAuditLog
+        FatAuditLog.objects.create(
+            user=user,
+            action=action,
+            character_name=character_name,
+            details=details,
+        )
+    except Exception:
+        logger.debug("Failed to create audit log entry", exc_info=True)
+
+
+def notify_user_group_change(user, action: str, group_name: str, scope: str):
+    """Notify a member when they are added to or removed from a compliance group.
+
+    Uses AA's notification system when available, falls back to no-op.
+    """
+    try:
+        from allianceauth.notifications import notify
+        if action == "add":
+            message = f"You have been added to the {scope} FAT compliance group '{group_name}'."
+        elif action == "remove":
+            message = f"You have been removed from the {scope} FAT compliance group '{group_name}' due to FAT requirements."
+        else:
+            return
+        notify(user, "FAT Compliance Update", message)
+    except ImportError:
+        logger.debug("allianceauth.notifications not available, skipping notification")
+    except Exception:
+        logger.debug("Failed to send group change notification", exc_info=True)
+
+
+def calculate_member_payout(strategic_fats: int, regular_fats: int, strategic_rate, regular_rate) -> Decimal:
+    """Return the member payout in ISK based on the configured FAT rates.
+
+    Rates may be ``Decimal``, ``int``, ``float`` or strings; they are coerced to
+    ``Decimal`` so the result is exact and safe to store in a ``DecimalField``.
+    """
+    strategic = Decimal(str(strategic_rate)) * Decimal(strategic_fats)
+    regular = Decimal(str(regular_rate)) * Decimal(regular_fats)
+    return strategic + regular
 
 
 def evaluate_member_threshold(member_total_fats: int, required_fats: int) -> bool:
@@ -75,25 +164,82 @@ def evaluate_corp_fat_threshold(corp_total_fats: int, corp_required_fats: int) -
 def get_corp_fat_total_from_source(source_name: str, user=None, days: int = 90) -> int:
     """Return the corp FAT total from the configured corp data source.
 
-    AFAT is treated as a corp FAT data source for the corp compliance logic. When the source is not
-    installed or unavailable, this function safely returns zero instead of crashing.
+    AFAT is treated as a corp FAT data source for the corp compliance logic. Individual FAT
+    registrations are stored in the ``Fat`` model (linked to ``FatLink`` via ``fatlink`` FK).
+    The ``afattime`` field on ``FatLink`` records when the FAT link was created and is used
+    to filter to the configured ``days`` window (default 90). When the source is not installed
+    or unavailable, this function safely returns zero instead of crashing.
     """
     if source_name == "afat":
         try:
-            from afat.models import FatLink
+            from afat.models import Fat
         except ImportError:
             return 0
 
         if user is not None:
             try:
-                return FatLink.objects.filter(
+                from django.utils import timezone
+                from datetime import timedelta
+                cutoff = timezone.now() - timedelta(days=days)
+                return Fat.objects.filter(
                     character__character_ownership__user=user,
+                    fatlink__afattime__gte=cutoff,
                 ).count()
             except Exception:
                 return 0
         return 0
 
     return 0
+
+
+def afat_available() -> bool:
+    """Return True when the AFAT app is installed and importable."""
+    try:
+        from afat.models import Fat  # noqa: F401
+        return True
+    except ImportError:
+        return False
+
+
+def evaluate_corp_compliance_for_user(user, settings) -> tuple[int, str]:
+    """Return ``(corp_total_fats, corp_action)`` for a resolved AA user.
+
+    Corp FATs are sourced from AFAT (the corp data source), not the alliance CSV.
+    When AFAT is not installed the action is ``"skipped"`` so callers can skip corp
+    group enforcement entirely instead of marking everyone non-compliant.
+    """
+    if user is None or not afat_available():
+        return 0, "skipped"
+
+    corp_required = getattr(settings, "corp_required_fats_per_90_days", 0)
+    corp_remove_above = getattr(settings, "corp_remove_group_above_fats", None)
+    days = getattr(settings, "fat_window_days", 90)
+    corp_total = get_corp_fat_total_from_source("afat", user=user, days=days)
+    action = resolve_group_action(corp_total, corp_required, corp_remove_above)
+    return corp_total, action
+
+
+def is_user_exempt(user, scope="both") -> bool:
+    """Return True if the user has an active FAT exemption for the given scope.
+
+    ``scope`` is one of ``"alliance"``, ``"corp"``, or ``"both"``. An exemption with
+    scope ``"both"`` covers all checks; an exemption with a specific scope only covers
+    that scope.
+    """
+    if user is None:
+        return False
+
+    try:
+        from aa_fatimporter.models import FatExemption
+        exemptions = FatExemption.objects.filter(user=user)
+        for exemption in exemptions:
+            if not exemption.is_active:
+                continue
+            if exemption.scope == "both" or exemption.scope == scope:
+                return True
+        return False
+    except Exception:
+        return False
 
 
 def resolve_group_action(member_total_fats: int, required_fats: int, remove_above_fats: int | None = None) -> str:
@@ -139,6 +285,21 @@ def aggregate_member_fat_totals(records: List[Dict[str, int | str]]) -> Dict[str
     return totals
 
 
+def aggregate_member_fat_breakdown(records: List[Dict[str, int | str]]) -> Dict[str, Dict[str, int]]:
+    """Aggregate total/strategic/regular FATs per member, keyed by lowercase name."""
+    breakdown: Dict[str, Dict[str, int]] = {}
+    for record in records:
+        name = str(record.get("character_name") or "").strip()
+        if not name:
+            continue
+        normalized = name.lower()
+        entry = breakdown.setdefault(normalized, {"total_fats": 0, "strategic_fats": 0, "regular_fats": 0})
+        entry["total_fats"] += int(record.get("total_fats", 0) or 0)
+        entry["strategic_fats"] += int(record.get("strategic_fats", 0) or 0)
+        entry["regular_fats"] += int(record.get("regular_fats", 0) or 0)
+    return breakdown
+
+
 def resolve_user_for_character_name(character_name: str):
     """Best-effort lookup for an AA user by main character name."""
     if not character_name:
@@ -158,9 +319,11 @@ def apply_member_fat_rules(records: List[Dict[str, int | str]], settings) -> Dic
     This is the runtime enforcement layer used after the CSV import completes.
     """
     totals = aggregate_member_fat_totals(records)
+    breakdown = aggregate_member_fat_breakdown(records)
     members: Dict[str, Dict[str, object]] = {}
 
     for name, total in totals.items():
+        entry = breakdown.get(name, {})
         alliance_action = resolve_group_action(
             total,
             getattr(settings, "alliance_required_fats_per_90_days", 0),
@@ -174,6 +337,8 @@ def apply_member_fat_rules(records: List[Dict[str, int | str]], settings) -> Dic
         members[name] = {
             "character_name": name,
             "total_fats": total,
+            "strategic_fats": entry.get("strategic_fats", 0),
+            "regular_fats": entry.get("regular_fats", 0),
             "alliance_action": alliance_action,
             "corp_action": corp_action,
         }
@@ -260,38 +425,46 @@ def format_import_summary_message(records: List[Dict[str, int | str]], settings)
 
 
 def send_import_summary_webhook(records: List[Dict[str, int | str]], settings=None) -> bool:
-    """Send the summary using the admin-configured main FAT settings unless the summary
-    settings explicitly override them.
-    """
-    settings_for_summary, _ = _resolve_summary_config()
-    if settings_for_summary is None:
-        return False
+    """Send the import summary to the admin-configured webhook.
 
-    repo_settings = settings or settings_for_summary
+    Settings resolution priority:
+    1. Explicitly-passed ``settings`` with a webhook_url (caller override)
+    2. Dedicated ``FatImportSummarySettings`` when explicitly configured
+    3. Main ``FatImportSettings`` as fallback
+    """
     if settings is not None and getattr(settings, "webhook_url", ""):
         settings_for_summary = settings
+    else:
+        settings_for_summary, _ = _resolve_summary_config()
+
+    if settings_for_summary is None:
+        return False
 
     webhook_url = getattr(settings_for_summary, "webhook_url", "") or ""
     if not webhook_url:
         return False
 
-    enabled = getattr(settings_for_summary, "webhook_enabled", False)
-    if settings_for_summary is not None and getattr(settings_for_summary, "webhook_enabled", False) is False:
-        enabled = bool(webhook_url)
-
-    if not enabled and not webhook_url:
+    enabled = getattr(settings_for_summary, "webhook_enabled", False) or getattr(
+        settings_for_summary, "post_import_summary", False
+    )
+    if not enabled:
         return False
 
-    if not enabled and webhook_url:
-        enabled = True
-
     message = format_import_summary_message(records, settings_for_summary)
-    return send_webhook_notification(webhook_url, message) if enabled else False
+    # Try synchronous first; if it fails, queue a retry task.
+    success = send_webhook_notification(webhook_url, message)
+    if not success:
+        try:
+            from aa_fatimporter.tasks import send_webhook_with_retry
+            send_webhook_with_retry.apply_async(args=[webhook_url, message])
+        except Exception:
+            pass
+    return success
 
 
-def sync_member_group(user, member_total_fats: int, required_fats: int, group_name: str | None = None, group_id: int | None = None, remove_above_fats: int | None = 15):
+def sync_member_group(user, member_total_fats: int, required_fats: int, group_name: str | None = None, group_id: int | None = None, remove_above_fats: int | None = 15, notify_scope: str | None = None, notify: bool = False):
     """Add or remove an Alliance Auth group for the member based on the FAT threshold."""
-    if not user or not group_name and group_id is None:
+    if not user or (not group_name and group_id is None):
         return "none"
 
     try:
@@ -317,8 +490,16 @@ def sync_member_group(user, member_total_fats: int, required_fats: int, group_na
     action = resolve_group_action(member_total_fats, required_fats, remove_above_fats)
     if action == "add" and not user.groups.filter(pk=group.pk).exists():
         user.groups.add(group)
+        log_audit_event("group_add", user=user, character_name=getattr(user, 'username', ''),
+                        details=f"Added to group '{group.name}'")
+        if notify:
+            notify_user_group_change(user, "add", group.name, scope=notify_scope or "FAT")
     elif action == "remove" and user.groups.filter(pk=group.pk).exists():
         user.groups.remove(group)
+        log_audit_event("group_remove", user=user, character_name=getattr(user, 'username', ''),
+                        details=f"Removed from group '{group.name}'")
+        if notify:
+            notify_user_group_change(user, "remove", group.name, scope=notify_scope or "FAT")
     return action
 
 
@@ -350,6 +531,113 @@ def create_invoice_deduction(user, amount: int | float, reason: str, invoice_due
     return invoice
 
 
+def _generate_payout_ref(character_name, import_record):
+    """Generate a unique payout reference for in-game ISK transfer matching."""
+    import hashlib
+    raw = f"fat-{import_record.pk}-{character_name}-{import_record.imported_at.strftime('%Y%m%d%H%M%S')}"
+    return "FAT-" + hashlib.md5(raw.encode("utf-8")).hexdigest()[:12].upper()
+
+
+def process_member_payout(user, character_name, strategic_fats, regular_fats, total_fats, settings_obj, import_record):
+    """Create a ``FatPayoutRecord`` for a member based on the configured payout method.
+
+    Returns the created ``FatPayoutRecord`` (or ``None`` when payouts are disabled or the
+    calculated amount is zero). A unique ``payout_ref`` is always generated so the director
+    can include it in the in-game ISK transfer reason for ESI auto-matching.
+    ``invoice_deduction`` payouts are marked ``paid`` immediately when the invoice is created;
+    ``withdrawal`` and ``manual`` payouts are ``pending`` for manual or ESI-auto-matched disbursement.
+    """
+    if not getattr(settings_obj, "payout_enabled", False):
+        return None
+
+    payout_method = getattr(settings_obj, "payout_method", "manual") or "manual"
+    valid_methods = {"withdrawal", "invoice_deduction", "manual"}
+    if payout_method not in valid_methods:
+        payout_method = "manual"
+
+    strategic_rate = getattr(settings_obj, "reward_for_strategic_fat", 0) or 0
+    regular_rate = getattr(settings_obj, "reward_for_regular_fat", 0) or 0
+    amount = calculate_member_payout(strategic_fats, regular_fats, strategic_rate, regular_rate)
+    if amount <= 0:
+        return None
+
+    payout_ref = _generate_payout_ref(character_name, import_record)
+    status = "pending"
+    paid_at = None
+
+    if payout_method == "invoice_deduction":
+        reason = f"FAT reward {payout_ref} for {character_name}: {strategic_fats} strategic / {regular_fats} regular"
+        invoice = create_invoice_deduction(user, amount, reason) if user is not None else None
+        if invoice is not None:
+            from django.utils import timezone
+            status = "paid"
+            paid_at = timezone.now()
+
+    payout = FatPayoutRecord.objects.create(
+        record=import_record,
+        user=user,
+        character_name=character_name,
+        strategic_fats=strategic_fats,
+        regular_fats=regular_fats,
+        total_fats=total_fats,
+        amount=amount,
+        payout_method=payout_method,
+        status=status,
+        payout_ref=payout_ref,
+        paid_at=paid_at,
+    )
+    return payout
+
+
+def format_payout_summary_message(payouts) -> str:
+    """Build a compact Discord-friendly payout report from a list of ``FatPayoutRecord``."""
+    if not payouts:
+        return ""
+
+    total_amount = sum((p.amount for p in payouts), Decimal("0"))
+    lines = [
+        f"{index}. {p.character_name.title()} - {p.amount} ISK ({p.payout_method}, {p.status})"
+        for index, p in enumerate(payouts, start=1)
+    ]
+    body = "\n".join(lines) or "No payouts."
+    return (
+        "```md\n"
+        "FAT Payout Summary\n"
+        "==================\n"
+        f"Payouts: {len(payouts)}\n"
+        f"Total: {total_amount} ISK\n"
+        "\n"
+        f"{body}\n"
+        "```"
+    )
+
+
+def send_payout_summary_webhook(payouts) -> bool:
+    """Send the payout summary to the admin-configured webhook, if any."""
+    if not payouts:
+        return False
+
+    settings_for_summary, _ = _resolve_summary_config()
+    if settings_for_summary is None:
+        return False
+
+    webhook_url = getattr(settings_for_summary, "webhook_url", "") or ""
+    if not webhook_url:
+        return False
+
+    message = format_payout_summary_message(payouts)
+    if not message:
+        return False
+    success = send_webhook_notification(webhook_url, message)
+    if not success:
+        try:
+            from aa_fatimporter.tasks import send_webhook_with_retry
+            send_webhook_with_retry.apply_async(args=[webhook_url, message])
+        except Exception:
+            pass
+    return success
+
+
 def send_webhook_notification(webhook_url: str, message: str):
     """Send a payout message to a configured webhook if provided."""
     if not webhook_url:
@@ -361,5 +649,8 @@ def send_webhook_notification(webhook_url: str, message: str):
         return False
 
     payload = {"content": message}
-    response = requests.post(webhook_url, json=payload, timeout=10)
-    return response.status_code in {200, 201, 202, 204}
+    try:
+        response = requests.post(webhook_url, json=payload, timeout=10)
+        return response.status_code in {200, 201, 202, 204}
+    except requests.RequestException:
+        return False

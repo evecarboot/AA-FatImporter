@@ -1,0 +1,127 @@
+{% extends "allianceauth/base-bs5.html" %}
+
+{% load i18n %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+    <div class="col-lg-12">
+        <div class="card shadow-sm">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Threshold What-If Simulator</h5>
+            </div>
+            <div class="card-body">
+                <p class="text-muted">Adjust the thresholds below to see how they would affect members based on the latest import.</p>
+
+                <!-- Threshold controls -->
+                <form method="get" class="row g-3 mb-4">
+                    <div class="col-md-2">
+                        <label class="form-label">Alliance Min</label>
+                        <input type="number" class="form-control" name="alliance_required" value="{{ alliance_required }}">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">Alliance Remove Above</label>
+                        <input type="number" class="form-control" name="alliance_remove" value="{{ alliance_remove }}">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">Corp Min</label>
+                        <input type="number" class="form-control" name="corp_required" value="{{ corp_required }}">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">Corp Remove Above</label>
+                        <input type="number" class="form-control" name="corp_remove" value="{{ corp_remove }}">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">Strategic Multiplier</label>
+                        <input type="number" step="0.1" class="form-control" name="multiplier" value="{{ multiplier }}">
+                    </div>
+                    <div class="col-md-2 d-flex align-items-end">
+                        <button type="submit" class="btn btn-primary w-100">Simulate</button>
+                    </div>
+                </form>
+
+                {% if results %}
+                    <!-- Summary -->
+                    <div class="row mb-3">
+                        <div class="col-md-3">
+                            <div class="card text-center">
+                                <div class="card-body">
+                                    <h4 class="mb-0">{{ total_members }}</h4>
+                                    <small class="text-muted">Total Members</small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card text-center border-success">
+                                <div class="card-body">
+                                    <h4 class="mb-0 text-success">{{ compliant }}</h4>
+                                    <small class="text-muted">Compliant</small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card text-center border-warning">
+                                <div class="card-body">
+                                    <h4 class="mb-0 text-warning">{{ alliance_add }}</h4>
+                                    <small class="text-muted">Would Add to Group</small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card text-center border-danger">
+                                <div class="card-body">
+                                    <h4 class="mb-0 text-danger">{{ alliance_remove_count }}</h4>
+                                    <small class="text-muted">Would Remove</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Results table -->
+                    <div class="table-responsive">
+                        <table class="table table-striped table-hover align-middle">
+                            <thead>
+                                <tr>
+                                    <th scope="col">Character</th>
+                                    <th scope="col">FATs</th>
+                                    <th scope="col">Weighted</th>
+                                    <th scope="col">Alliance Action</th>
+                                    <th scope="col">Corp Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for member in results %}
+                                    <tr>
+                                        <td>{{ member.character_name }}</td>
+                                        <td>{{ member.total_fats }}</td>
+                                        <td>{{ member.weighted_total }}</td>
+                                        <td>
+                                            {% if member.alliance_action == 'add' %}
+                                                <span class="badge bg-warning">Add</span>
+                                            {% elif member.alliance_action == 'remove' %}
+                                                <span class="badge bg-danger">Remove</span>
+                                            {% else %}
+                                                <span class="badge bg-success">OK</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if member.corp_action == 'add' %}
+                                                <span class="badge bg-warning">Add</span>
+                                            {% elif member.corp_action == 'remove' %}
+                                                <span class="badge bg-danger">Remove</span>
+                                            {% else %}
+                                                <span class="badge bg-success">OK</span>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <p class="mb-0">No import data available. Upload a FAT CSV first.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+{% endblock %}
