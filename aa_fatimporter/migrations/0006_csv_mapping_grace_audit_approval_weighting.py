@@ -11,17 +11,6 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        # Add strategic_fats and regular_fats to FatImportMemberResult
-        migrations.AddField(
-            model_name="fatimportmemberresult",
-            name="strategic_fats",
-            field=models.PositiveIntegerField(default=0),
-        ),
-        migrations.AddField(
-            model_name="fatimportmemberresult",
-            name="regular_fats",
-            field=models.PositiveIntegerField(default=0),
-        ),
         # #4 CSV column mapping
         migrations.AddField(
             model_name="fatimportsettings",

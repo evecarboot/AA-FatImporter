@@ -92,7 +92,7 @@
                                 <tr>
                                     <td>{{ name }}</td>
                                     <td>{{ trend|length }}</td>
-                                    <td>{{ trend|first }}</td>
+                                    <td>{% with latest=trend|first %}{{ latest.fats }}{% endwith %}</td>
                                     <td>
                                         {% for point in trend reversed %}
                                             <span title="{{ point.date }}">{{ point.fats }}</span>{% if not forloop.last %} &rarr; {% endif %}
